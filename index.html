@@ -3,75 +3,575 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>My Colorful Dashboard</title>
+  <title>Dynamic Data Dashboard</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+  <style>
+    :root {
+      --primary-color: #4361ee;
+      --secondary-color: #3f37c9;
+      --accent-color: #4895ef;
+      --light-color: #f8f9fa;
+      --dark-color: #212529;
+      --success-color: #4cc9f0;
+      --info-color: #4361ee;
+      --warning-color: #f72585;
+      --danger-color: #7209b7;
+    }
+    
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #f5f7fa 0%, #e4e8ed 100%);
+      min-height: 100vh;
+      padding-bottom: 40px;
+    }
+    
+    .dashboard-header {
+      background: linear-gradient(to right, var(--primary-color), var(--accent-color));
+      color: white;
+      padding: 2rem 0;
+      margin-bottom: 2rem;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+    
+    .dashboard-title {
+      font-weight: 700;
+      text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
+    }
+    
+    .dashboard-card {
+      background-color: white;
+      border-radius: 10px;
+      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+      margin-bottom: 1.5rem;
+      overflow: hidden;
+    }
+    
+    .dashboard-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 12px 24px rgba(0, 0, 0, 0.12);
+    }
+    
+    .card-header {
+      background-color: var(--light-color);
+      font-weight: 600;
+      border-bottom: 2px solid rgba(0, 0, 0, 0.05);
+    }
+    
+    .table-responsive {
+      overflow-x: auto;
+    }
+    
+    .table {
+      margin-bottom: 0;
+    }
+    
+    .table thead th {
+      background-color: var(--light-color);
+      font-weight: 600;
+      border-bottom: 2px solid rgba(0, 0, 0, 0.05);
+    }
+    
+    .table tbody tr:hover {
+      background-color: rgba(67, 97, 238, 0.05);
+    }
+    
+    .dashboard-summary {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+    
+    .summary-card {
+      flex: 1;
+      min-width: 200px;
+      background: white;
+      border-radius: 10px;
+      padding: 1rem;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+      border-left: 4px solid var(--primary-color);
+      transition: transform 0.3s ease;
+    }
+    
+    .summary-card:hover {
+      transform: translateY(-3px);
+    }
+    
+    .summary-card .value {
+      font-size: 1.8rem;
+      font-weight: 700;
+      color: var(--dark-color);
+    }
+    
+    .summary-card .label {
+      color: #6c757d;
+      font-size: 0.9rem;
+    }
+    
+    /* Color utilities for category highlights */
+    .bg-cat-1 { background-color: rgba(255, 99, 132, 0.2); border-left: 4px solid #ff6384; }
+    .bg-cat-2 { background-color: rgba(54, 162, 235, 0.2); border-left: 4px solid #36a2eb; }
+    .bg-cat-3 { background-color: rgba(153, 102, 255, 0.2); border-left: 4px solid #9966ff; }
+    .bg-cat-4 { background-color: rgba(255, 159, 64, 0.2); border-left: 4px solid #ff9f40; }
+    
+    .badge-cat-1 { background-color: #ff6384; }
+    .badge-cat-2 { background-color: #36a2eb; }
+    .badge-cat-3 { background-color: #9966ff; }
+    .badge-cat-4 { background-color: #ff9f40; }
+    
+    /* Loading animation */
+    .loading-container {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 200px;
+    }
+    
+    .loading-spinner {
+      width: 40px;
+      height: 40px;
+      border: 4px solid rgba(0, 0, 0, 0.1);
+      border-radius: 50%;
+      border-top-color: var(--primary-color);
+      animation: spin 1s ease-in-out infinite;
+    }
+    
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    
+    /* Error state */
+    .error-container {
+      text-align: center;
+      padding: 2rem;
+      background-color: rgba(255, 0, 0, 0.05);
+      border-radius: 10px;
+      border: 1px solid rgba(255, 0, 0, 0.2);
+    }
+    
+    /* Footer */
+    .dashboard-footer {
+      text-align: center;
+      padding: 1rem 0;
+      margin-top: 2rem;
+      color: #6c757d;
+      font-size: 0.9rem;
+    }
+    
+    /* Make the legend more readable */
+    .chart-legend {
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-top: 1rem;
+    }
+    
+    .legend-item {
+      display: flex;
+      align-items: center;
+      margin: 0.5rem 1rem;
+    }
+    
+    .legend-color {
+      width: 16px;
+      height: 16px;
+      border-radius: 4px;
+      margin-right: 8px;
+    }
+    
+    /* Media queries for responsiveness */
+    @media (max-width: 768px) {
+      .dashboard-summary {
+        flex-direction: column;
+      }
+      
+      .summary-card {
+        min-width: 100%;
+      }
+    }
+  </style>
 </head>
 <body>
+  <!-- Dashboard Header -->
+  <header class="dashboard-header">
+    <div class="container">
+      <h1 class="dashboard-title text-center">Dynamic Data Dashboard</h1>
+      <p class="text-center text-white mb-0">Visualizing your Google Sheets data in real-time</p>
+    </div>
+  </header>
+
+  <!-- Main Dashboard Content -->
   <div class="container">
-    <h1 class="text-center my-4">My Colorful Dashboard</h1>
-    <div class="row">
-      <div class="col-md-6">
-        <canvas id="myChart"></canvas>
+    <!-- Summary Cards Section -->
+    <div class="dashboard-summary" id="summarySection">
+      <!-- Summary cards will be dynamically inserted here -->
+      <div class="loading-container">
+        <div class="loading-spinner"></div>
       </div>
-      <div class="col-md-6">
-        <div id="dataTable"></div>
+    </div>
+
+    <!-- Chart and Table Section -->
+    <div class="row">
+      <!-- Chart Section -->
+      <div class="col-lg-5 mb-4">
+        <div class="dashboard-card">
+          <div class="card-header p-3">
+            Data Distribution
+          </div>
+          <div class="card-body">
+            <canvas id="myChart" height="250"></canvas>
+            <div class="chart-legend" id="chartLegend">
+              <!-- Legend items will be dynamically inserted here -->
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Table Section -->
+      <div class="col-lg-7 mb-4">
+        <div class="dashboard-card">
+          <div class="card-header p-3 d-flex justify-content-between align-items-center">
+            <span>Data Table</span>
+            <input 
+              type="text" 
+              id="tableSearch" 
+              class="form-control form-control-sm w-auto" 
+              placeholder="Search..." 
+              style="max-width: 150px;"
+            >
+          </div>
+          <div class="card-body p-0">
+            <div class="table-responsive">
+              <table class="table table-hover" id="dataTable">
+                <!-- Table content will be dynamically inserted here -->
+                <thead>
+                  <tr>
+                    <th>Loading data...</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>Please wait...</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
 
+  <!-- Footer -->
+  <footer class="dashboard-footer">
+    <div class="container">
+      <p>© 2025 Dynamic Data Dashboard. Powered by Cloudflare and Google Sheets.</p>
+    </div>
+  </footer>
+
+  <!-- JavaScript Libraries -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  
+  <!-- Main JavaScript -->
   <script>
-    // Replace this fetch URL with your actual Google Sheets data endpoint
-    fetch("/api/data") // Adjust this to match your setup
-      .then(response => response.json())
-      .then(sheetData => {
-        const headers = sheetData[0];  // e.g., ["Category", "Value"]
-        const rows = sheetData.slice(1);  // e.g., [["A", 10], ["B", 20], ...]
-
-        // Process data for pie chart
-        const categories = rows.map(row => row[0]);  // ["A", "B", ...]
-        const values = rows.map(row => row[1]);  // [10, 20, ...]
-
-        // Render pie chart
-        const ctx = document.getElementById('myChart').getContext('2d');
-        new Chart(ctx, {
-          type: 'pie',
-          data: {
-            labels: categories,
-            datasets: [{
-              data: values,
-              backgroundColor: ['#ff6384', '#36a2eb', '#cc65fe', '#ffce56'],
-            }]
-          },
-          options: {
-            responsive: true,
-            plugins: {
-              legend: { position: 'top' },
-            }
+    // Configuration
+    const COLORS = ['#ff6384', '#36a2eb', '#9966ff', '#ff9f40', '#4bc0c0', '#ffcd56', '#c9cbcf'];
+    const CATEGORY_COLUMN = 'CATEGORY'; // Change this to match your category column name
+    
+    // State variables
+    let originalData = [];
+    let categoryData = {};
+    let chart = null;
+    
+    // Main function to initialize the dashboard
+    function initDashboard() {
+      loadData();
+      
+      // Set up search functionality
+      document.getElementById('tableSearch').addEventListener('input', function(e) {
+        filterTable(e.target.value);
+      });
+    }
+    
+    // Load data from API
+    function loadData() {
+      fetch('/api/data')
+        .then(response => {
+          if (!response.ok) {
+            throw new Error(`API returned ${response.status}: ${response.statusText}`);
+          }
+          return response.json();
+        })
+        .then(data => {
+          processData(data);
+        })
+        .catch(error => {
+          console.error('Error loading data:', error);
+          showError(error.message);
+        });
+    }
+    
+    // Process the data from API
+    function processData(sheetData) {
+      try {
+        if (!Array.isArray(sheetData) || sheetData.length === 0) {
+          throw new Error('Invalid data format or empty data');
+        }
+        
+        const headers = sheetData[0].map(header => header.toUpperCase());
+        const rows = sheetData.slice(1);
+        
+        // Transform the data into an array of objects with header keys
+        const processedData = rows.map(row => {
+          const rowData = {};
+          headers.forEach((header, index) => {
+            rowData[header] = row[index];
+          });
+          return rowData;
+        });
+        
+        originalData = processedData;
+        
+        // Render the dashboard components
+        renderSummary(headers, processedData);
+        renderTable(headers, processedData);
+        renderChart(headers, processedData);
+      } catch (error) {
+        console.error('Error processing data:', error);
+        showError(error.message);
+      }
+    }
+    
+    // Render summary cards
+    function renderSummary(headers, data) {
+      const summarySection = document.getElementById('summarySection');
+      summarySection.innerHTML = '';
+      
+      // Check if we have category data
+      const categoryIndex = headers.indexOf(CATEGORY_COLUMN);
+      
+      if (categoryIndex >= 0) {
+        // Count by category
+        const categories = {};
+        data.forEach(row => {
+          const category = row[CATEGORY_COLUMN];
+          if (category) {
+            categories[category] = (categories[category] || 0) + 1;
           }
         });
-
-        // Render table
-        const table = document.createElement('table');
-        table.className = 'table table-striped';
-        const thead = table.createTHead();
-        const headerRow = thead.insertRow();
+        
+        categoryData = categories;
+        
+        // Create summary cards for each category
+        Object.entries(categories).forEach(([category, count], index) => {
+          const percentage = Math.round((count / data.length) * 100);
+          
+          const card = document.createElement('div');
+          card.className = `summary-card bg-cat-${parseInt(category)}`;
+          card.innerHTML = `
+            <div class="value">${count}</div>
+            <div class="label">Category ${category} (${percentage}%)</div>
+          `;
+          
+          summarySection.appendChild(card);
+        });
+      } else {
+        // If no category column, just show total count
+        const card = document.createElement('div');
+        card.className = 'summary-card';
+        card.innerHTML = `
+          <div class="value">${data.length}</div>
+          <div class="label">Total Records</div>
+        `;
+        
+        summarySection.appendChild(card);
+      }
+    }
+    
+    // Render data table
+    function renderTable(headers, data) {
+      const table = document.getElementById('dataTable');
+      
+      // Create table header
+      const thead = document.createElement('thead');
+      const headerRow = document.createElement('tr');
+      
+      headers.forEach(header => {
+        const th = document.createElement('th');
+        th.textContent = header;
+        headerRow.appendChild(th);
+      });
+      
+      thead.appendChild(headerRow);
+      
+      // Create table body
+      const tbody = document.createElement('tbody');
+      
+      data.forEach(row => {
+        const tr = document.createElement('tr');
+        
         headers.forEach(header => {
-          const th = document.createElement('th');
-          th.textContent = header;
-          headerRow.appendChild(th);
+          const td = document.createElement('td');
+          const value = row[header];
+          
+          // If this is the category column, add special styling
+          if (header === CATEGORY_COLUMN) {
+            td.innerHTML = `<span class="badge badge-cat-${parseInt(value)}">${value}</span>`;
+          } else {
+            td.textContent = value;
+          }
+          
+          tr.appendChild(td);
         });
-        const tbody = table.createTBody();
-        rows.forEach(row => {
-          const tr = tbody.insertRow();
-          row.forEach(cell => {
-            const td = tr.insertCell();
-            td.textContent = cell;
-          });
-        });
-        document.getElementById('dataTable').appendChild(table);
-      })
-      .catch(error => console.error("Error fetching data:", error));
+        
+        tbody.appendChild(tr);
+      });
+      
+      // Replace existing table content
+      table.innerHTML = '';
+      table.appendChild(thead);
+      table.appendChild(tbody);
+    }
+    
+    // Render chart
+    function renderChart(headers, data) {
+      const categoryIndex = headers.indexOf(CATEGORY_COLUMN);
+      
+      if (categoryIndex < 0) {
+        // No category column, can't create meaningful chart
+        document.getElementById('myChart').parentElement.innerHTML = 
+          '<div class="p-4 text-center">No category data available for visualization</div>';
+        return;
+      }
+      
+      // Prepare chart data
+      const categories = {};
+      data.forEach(row => {
+        const category = row[CATEGORY_COLUMN];
+        if (category) {
+          categories[category] = (categories[category] || 0) + 1;
+        }
+      });
+      
+      const chartLabels = Object.keys(categories).map(cat => `Category ${cat}`);
+      const chartData = Object.values(categories);
+      const chartColors = Object.keys(categories).map((cat, index) => 
+        COLORS[parseInt(cat) - 1] || COLORS[index % COLORS.length]
+      );
+      
+      // Create the chart
+      const ctx = document.getElementById('myChart').getContext('2d');
+      
+      if (chart) {
+        chart.destroy();
+      }
+      
+      chart = new Chart(ctx, {
+        type: 'pie',
+        data: {
+          labels: chartLabels,
+          datasets: [{
+            data: chartData,
+            backgroundColor: chartColors,
+            borderColor: 'white',
+            borderWidth: 2
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              display: false
+            },
+            tooltip: {
+              callbacks: {
+                label: function(context) {
+                  const value = context.raw;
+                  const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                  const percentage = Math.round((value / total) * 100);
+                  return `${value} records (${percentage}%)`;
+                }
+              }
+            }
+          }
+        }
+      });
+      
+      // Create custom legend
+      renderChartLegend(chartLabels, chartColors);
+    }
+    
+    // Render custom chart legend
+    function renderChartLegend(labels, colors) {
+      const legendContainer = document.getElementById('chartLegend');
+      legendContainer.innerHTML = '';
+      
+      labels.forEach((label, index) => {
+        const legendItem = document.createElement('div');
+        legendItem.className = 'legend-item';
+        
+        const colorBox = document.createElement('div');
+        colorBox.className = 'legend-color';
+        colorBox.style.backgroundColor = colors[index];
+        
+        const labelText = document.createElement('span');
+        labelText.textContent = label;
+        
+        legendItem.appendChild(colorBox);
+        legendItem.appendChild(labelText);
+        legendContainer.appendChild(legendItem);
+      });
+    }
+    
+    // Filter table based on search term
+    function filterTable(searchTerm) {
+      if (!originalData.length) return;
+      
+      const headers = Object.keys(originalData[0]);
+      
+      if (searchTerm.trim() === '') {
+        // Reset to original data
+        renderTable(headers, originalData);
+        return;
+      }
+      
+      // Filter data
+      const term = searchTerm.toLowerCase();
+      const filteredData = originalData.filter(row => 
+        Object.values(row).some(value => 
+          value && value.toString().toLowerCase().includes(term)
+        )
+      );
+      
+      // Re-render the table with filtered data
+      renderTable(headers, filteredData);
+    }
+    
+    // Show error message
+    function showError(message) {
+      const containers = [
+        document.getElementById('summarySection'),
+        document.getElementById('myChart').parentElement,
+        document.getElementById('dataTable').parentElement
+      ];
+      
+      containers.forEach(container => {
+        container.innerHTML = `
+          <div class="error-container">
+            <h5>Error Loading Data</h5>
+            <p>${message}</p>
+            <button class="btn btn-sm btn-outline-primary mt-2" onclick="initDashboard()">
+              Try Again
+            </button>
+          </div>
+        `;
+      });
+    }
+    
+    // Initialize the dashboard when the page loads
+    document.addEventListener('DOMContentLoaded', initDashboard);
   </script>
 </body>
 </html>
