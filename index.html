@@ -1,4 +1,475 @@
-<!DOCTYPE html>
+<script>
+    // Configuration
+    const COLORS = ['#ff6384', '#36a2eb', '#9966ff', '#ff9f40', '#4bc0c0', '#ffcd56', '#c9cbcf'];
+    const CATEGORY_COLUMN = 'CATEGORY'; // Change this to match your category column name
+    
+    // State variables
+    let originalData = [];
+    let categoryData = {};
+    let chart = null;
+    let activeFilter = null;
+    let sortConfig = { column: null, direction: 'asc' };
+    
+    // Main function to initialize the dashboard
+    function initDashboard() {
+      loadData();
+      
+      // Set up search functionality
+      document.getElementById('tableSearch').addEventListener('input', function(e) {
+        filterTable(e.target.value);
+      });
+      
+      // Update timestamp
+      updateTimestamp();
+    }
+    
+    // Load data from API
+    function loadData() {
+      fetch('/api/data')
+        .then(response => {
+          if (!response.ok) {
+            throw new Error(`API returned ${response.status}: ${response.statusText}`);
+          }
+          return response.json();
+        })
+        .then(data => {
+          processData(data);
+        })
+        .catch(error => {
+          console.error('Error loading data:', error);
+          showError(error.message);
+        });
+    }
+    
+    // Process the data from API
+    function processData(sheetData) {
+      try {
+        if (!Array.isArray(sheetData) || sheetData.length === 0) {
+          throw new Error('Invalid data format or empty data');
+        }
+        
+        const headers = sheetData[0].map(header => String(header).toUpperCase());
+        const rows = sheetData.slice(1);
+        
+        // Transform the data into an array of objects with header keys
+        const processedData = rows.map(row => {
+          const rowData = {};
+          headers.forEach((header, index) => {
+            rowData[header] = row[index];
+          });
+          return rowData;
+        });
+        
+        originalData = processedData;
+        
+        // Render the dashboard components
+        renderSummary(headers, processedData);
+        renderTable(headers, processedData);
+        renderChart(headers, processedData);
+        
+        // Update record count
+        updateRecordCount(processedData.length);
+        
+        // Update timestamp
+        updateTimestamp();
+      } catch (error) {
+        console.error('Error processing data:', error);
+        showError(error.message);
+      }
+    }
+    
+    // Update record count display
+    function updateRecordCount(count) {
+      const recordCountElement = document.getElementById('recordCount');
+      if (recordCountElement) {
+        recordCountElement.textContent = `${count} record${count !== 1 ? 's' : ''}`;
+      }
+    }
+    
+    // Update timestamp
+    function updateTimestamp() {
+      const timestampElement = document.getElementById('updateTime');
+      if (timestampElement) {
+        const now = new Date();
+        const formattedTime = now.toLocaleString();
+        timestampElement.textContent = formattedTime;
+      }
+    }
+    
+    // Render summary cards
+    function renderSummary(headers, data) {
+      const summarySection = document.getElementById('summarySection');
+      summarySection.innerHTML = '';
+      
+      // Check if we have category data
+      const categoryIndex = headers.indexOf(CATEGORY_COLUMN);
+      
+      if (categoryIndex >= 0) {
+        // Count by category
+        const categories = {};
+        data.forEach(row => {
+          const category = row[CATEGORY_COLUMN];
+          if (category) {
+            categories[category] = (categories[category] || 0) + 1;
+          }
+        });
+        
+        categoryData = categories;
+        
+        // Create summary cards for each category
+        Object.entries(categories).forEach(([category, count], index) => {
+          const percentage = Math.round((count / data.length) * 100);
+          
+          const card = document.createElement('div');
+          card.className = `summary-card bg-category-${parseInt(category)}`;
+          card.setAttribute('data-category', category);
+          card.innerHTML = `
+            <div class="value">${count}</div>
+            <div class="label">Category ${category}</div>
+            <div class="percentage">${percentage}% of total</div>
+          `;
+          
+          // Add click event for filtering
+          card.addEventListener('click', function() {
+            toggleCategoryFilter(category);
+          });
+          
+          summarySection.appendChild(card);
+        });
+      } else {
+        // If no category column, just show total count
+        const card = document.createElement('div');
+        card.className = 'summary-card';
+        card.innerHTML = `
+          <div class="value">${data.length}</div>
+          <div class="label">Total Records</div>
+        `;
+        
+        summarySection.appendChild(card);
+      }
+    }
+    
+    // Toggle category filter
+    function toggleCategoryFilter(category) {
+      const filterHint = document.getElementById('filterHint');
+      
+      if (activeFilter === category) {
+        // Clear filter
+        activeFilter = null;
+        filterTable(document.getElementById('tableSearch').value);
+        
+        // Update UI
+        document.querySelectorAll('.summary-card').forEach(card => {
+          card.style.opacity = '1';
+        });
+        
+        // Show hint briefly
+        filterHint.textContent = 'Filter cleared';
+        filterHint.classList.add('show');
+        setTimeout(() => {
+          filterHint.classList.remove('show');
+        }, 1500);
+      } else {
+        // Set filter
+        activeFilter = category;
+        filterTable(document.getElementById('tableSearch').value);
+        
+        // Update UI
+        document.querySelectorAll('.summary-card').forEach(card => {
+          if (card.getAttribute('data-category') === category) {
+            card.style.opacity = '1';
+          } else {
+            card.style.opacity = '0.5';
+          }
+        });
+        
+        // Show hint briefly
+        filterHint.textContent = `Filtering Category ${category}`;
+        filterHint.classList.add('show');
+        setTimeout(() => {
+          filterHint.classList.remove('show');
+        }, 1500);
+      }
+    }
+    
+    // Render data table
+    function renderTable(headers, data) {
+      const table = document.getElementById('dataTable');
+      
+      // Create table header
+      const thead = document.createElement('thead');
+      const headerRow = document.createElement('tr');
+      
+      headers.forEach(header => {
+        const th = document.createElement('th');
+        th.textContent = header;
+        th.className = 'sortable';
+        th.addEventListener('click', () => sortTable(header));
+        
+        // If this column is currently sorted, add the appropriate class
+        if (sortConfig.column === header) {
+          th.classList.add(sortConfig.direction);
+        }
+        
+        headerRow.appendChild(th);
+      });
+      
+      thead.appendChild(headerRow);
+      
+      // Create table body
+      const tbody = document.createElement('tbody');
+      
+      data.forEach(row => {
+        const tr = document.createElement('tr');
+        
+        headers.forEach(header => {
+          const td = document.createElement('td');
+          const value = row[header];
+          
+          // If this is the category column, add special styling
+          if (header === CATEGORY_COLUMN) {
+            td.innerHTML = `<span class="badge badge-cat-${parseInt(value)}">${value}</span>`;
+          } else {
+            td.textContent = value || '';
+          }
+          
+          tr.appendChild(td);
+        });
+        
+        tbody.appendChild(tr);
+      });
+      
+      // Replace existing table content
+      table.innerHTML = '';
+      table.appendChild(thead);
+      table.appendChild(tbody);
+      
+      // Update record count
+      updateRecordCount(data.length);
+    }
+    
+    // Sort table by column
+    function sortTable(columnName) {
+      if (sortConfig.column === columnName) {
+        // Toggle direction if already sorting by this column
+        sortConfig.direction = sortConfig.direction === 'asc' ? 'desc' : 'asc';
+      } else {
+        // Set new sort column and default to ascending
+        sortConfig.column = columnName;
+        sortConfig.direction = 'asc';
+      }
+      
+      // Sort the data
+      const sortedData = [...originalData].sort((a, b) => {
+        const valueA = a[columnName];
+        const valueB = b[columnName];
+        
+        // Handle numeric sorting
+        if (!isNaN(valueA) && !isNaN(valueB)) {
+          return sortConfig.direction === 'asc' 
+            ? Number(valueA) - Number(valueB)
+            : Number(valueB) - Number(valueA);
+        }
+        
+        // Handle string sorting
+        const stringA = String(valueA || '').toLowerCase();
+        const stringB = String(valueB || '').toLowerCase();
+        
+        if (stringA < stringB) {
+          return sortConfig.direction === 'asc' ? -1 : 1;
+        }
+        if (stringA > stringB) {
+          return sortConfig.direction === 'asc' ? 1 : -1;
+        }
+        return 0;
+      });
+      
+      // Apply any active filters
+      const filteredData = applyFilters(sortedData);
+      
+      // Re-render the table with sorted data
+      renderTable(Object.keys(originalData[0]), filteredData);
+    }
+    
+    // Apply all active filters
+    function applyFilters(data) {
+      // Start with all data or provided data
+      let filteredData = data || [...originalData];
+      
+      // Apply category filter if active
+      if (activeFilter !== null) {
+        filteredData = filteredData.filter(row => 
+          row[CATEGORY_COLUMN] && row[CATEGORY_COLUMN].toString() === activeFilter.toString()
+        );
+      }
+      
+      // Apply search filter if any
+      const searchTerm = document.getElementById('tableSearch').value.toLowerCase();
+      if (searchTerm.trim() !== '') {
+        filteredData = filteredData.filter(row => 
+          Object.values(row).some(value => 
+            value && value.toString().toLowerCase().includes(searchTerm)
+          )
+        );
+      }
+      
+      return filteredData;
+    }
+    
+    // Filter table based on search term
+    function filterTable(searchTerm) {
+      if (!originalData.length) return;
+      
+      const headers = Object.keys(originalData[0]);
+      
+      // Apply all filters
+      const filteredData = applyFilters();
+      
+      // Re-render the table with filtered data
+      renderTable(headers, filteredData);
+    }
+    
+    // Render chart
+    function renderChart(headers, data) {
+      const categoryIndex = headers.indexOf(CATEGORY_COLUMN);
+      
+      if (categoryIndex < 0) {
+        // No category column, can't create meaningful chart
+        document.getElementById('myChart').parentElement.parentElement.innerHTML = 
+          '<div class="p-4 text-center">No category data available for visualization</div>';
+        return;
+      }
+      
+      // Prepare chart data
+      const categories = {};
+      data.forEach(row => {
+        const category = row[CATEGORY_COLUMN];
+        if (category) {
+          categories[category] = (categories[category] || 0) + 1;
+        }
+      });
+      
+      const chartLabels = Object.keys(categories).map(cat => `Category ${cat}`);
+      const chartData = Object.values(categories);
+      const chartColors = Object.keys(categories).map((cat, index) => 
+        COLORS[parseInt(cat) - 1 % COLORS.length] || COLORS[index % COLORS.length]
+      );
+      
+      // Create the chart
+      const ctx = document.getElementById('myChart').getContext('2d');
+      
+      if (chart) {
+        chart.destroy();
+      }
+      
+      chart = new Chart(ctx, {
+        type: 'pie',
+        data: {
+          labels: chartLabels,
+          datasets: [{
+            data: chartData,
+            backgroundColor: chartColors,
+            borderColor: 'white',
+            borderWidth: 2
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          plugins: {
+            legend: {
+              display: false,
+              position: 'top',
+            },
+            tooltip: {
+              callbacks: {
+                label: function(context) {
+                  const value = context.raw;
+                  const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                  const percentage = Math.round((value / total) * 100);
+                  return `${value} records (${percentage}%)`;
+                }
+              }
+            },
+            datalabels: {
+              formatter: (value, ctx) => {
+                const total = ctx.dataset.data.reduce((a, b) => a + b, 0);
+                const percentage = Math.round((value / total) * 100);
+                return percentage > 5 ? `${percentage}%` : '';
+              },
+              color: '#fff',
+              font: {
+                weight: 'bold',
+                size: 12
+              }
+            }
+          }
+        }
+      });
+      
+      // Create custom legend with click handlers
+      renderChartLegend(chartLabels, chartColors);
+    }
+    
+    // Render custom chart legend
+    function renderChartLegend(labels, colors) {
+      const legendContainer = document.getElementById('chartLegend');
+      legendContainer.innerHTML = '';
+      
+      labels.forEach((label, index) => {
+        const category = label.replace('Category ', '');
+        
+        const legendItem = document.createElement('div');
+        legendItem.className = 'legend-item';
+        legendItem.setAttribute('data-category', category);
+        
+        const colorBox = document.createElement('div');
+        colorBox.className = 'legend-color';
+        colorBox.style.backgroundColor = colors[index];
+        
+        const labelText = document.createElement('span');
+        labelText.className = 'legend-label';
+        labelText.textContent = label;
+        
+        legendItem.appendChild(colorBox);
+        legendItem.appendChild(labelText);
+        
+        // Add click event for filtering
+        legendItem.addEventListener('click', function() {
+          toggleCategoryFilter(category);
+        });
+        
+        legendContainer.appendChild(legendItem);
+      });
+    }
+    
+    // Show error message
+    function showError(message) {
+      const containers = [
+        document.getElementById('summarySection'),
+        document.getElementById('myChart').parentElement.parentElement,
+        document.getElementById('dataTable').parentElement
+      ];
+      
+      containers.forEach(container => {
+        container.innerHTML = `
+          <div class="error-container">
+            <h5>Error Loading Data</h5>
+            <p>${message}</p>
+            <button class="btn btn-sm btn-outline-primary mt-2" onclick="initDashboard()">
+              Try Again
+            </button>
+          </div>
+        `;
+      });
+      
+      // Update timestamp to show error time
+      updateTimestamp();
+    }
+    
+    // Initialize the dashboard when the page loads
+    document.addEventListener('DOMContentLoaded', initDashboard);
+  </script><!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -20,10 +491,6 @@
       --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.1);
       --shadow-lg: 0 8px 16px rgba(0, 0, 0, 0.15);
       --transition-speed: 0.3s;
-      
-      /* Category colors */
-      --available-color: #ff6384;     /* Pink for Available */
-      --not-available-color: #36a2eb; /* Blue for Not Available */
     }
     
     body {
@@ -161,9 +628,15 @@
       margin-top: 0.25rem;
     }
     
-    /* Category styles */
-    .bg-category-1 { background-color: rgba(255, 99, 132, 0.1); border-left: 4px solid var(--available-color); }
-    .bg-category-2 { background-color: rgba(54, 162, 235, 0.1); border-left: 4px solid var(--not-available-color); }
+    /* Category colors */
+    .category-1 { --category-color: #ff6384; }
+    .category-2 { --category-color: #36a2eb; }
+    .category-3 { --category-color: #9966ff; }
+    .category-4 { --category-color: #ff9f40; }
+    .category-5 { --category-color: #4bc0c0; }
+    
+    .bg-category-1 { background-color: rgba(255, 99, 132, 0.1); border-left: 4px solid #ff6384; }
+    .bg-category-2 { background-color: rgba(54, 162, 235, 0.1); border-left: 4px solid #36a2eb; }
     .bg-category-3 { background-color: rgba(153, 102, 255, 0.1); border-left: 4px solid #9966ff; }
     .bg-category-4 { background-color: rgba(255, 159, 64, 0.1); border-left: 4px solid #ff9f40; }
     .bg-category-5 { background-color: rgba(75, 192, 192, 0.1); border-left: 4px solid #4bc0c0; }
@@ -181,8 +654,8 @@
       border-radius: 0.375rem;
     }
     
-    .badge-cat-1 { background-color: var(--available-color); }
-    .badge-cat-2 { background-color: var(--not-available-color); }
+    .badge-cat-1 { background-color: #ff6384; }
+    .badge-cat-2 { background-color: #36a2eb; }
     .badge-cat-3 { background-color: #9966ff; }
     .badge-cat-4 { background-color: #ff9f40; }
     .badge-cat-5 { background-color: #4bc0c0; }
@@ -331,41 +804,7 @@
       content: '↓';
       color: var(--primary-color);
     }
-
-    /* Improved category badge styling */
-.badge {
-  display: inline-block;
-  padding: 0.4em 0.8em;
-  font-size: 0.85rem;
-  font-weight: 700;
-  line-height: 1.2;
-  color: #fff;
-  text-align: center;
-  white-space: nowrap;
-  vertical-align: baseline;
-  border-radius: 0.375rem;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
-}
-
-/* Brighter colors for category badges */
-.badge-cat-1 { 
-  background-color: #ff3366; 
-  color: white;
-}
-.badge-cat-2 { 
-  background-color: #2196f3; 
-  color: white;
-}
-
-/* Updated card colors without the "Category" text */
-.bg-category-1 { 
-  background: linear-gradient(to right, rgba(255, 51, 102, 0.1), rgba(255, 51, 102, 0.05)); 
-  border-left: 4px solid #ff3366; 
-}
-.bg-category-2 { 
-  background: linear-gradient(to right, rgba(33, 150, 243, 0.1), rgba(33, 150, 243, 0.05)); 
-  border-left: 4px solid #2196f3; 
-}
+    
     /* Overlay for category filtering */
     .overlay-hint {
       position: fixed;
@@ -446,8 +885,11 @@
           </div>
           <div class="card-body">
             <div class="chart-container">
-              <div style="height: 350px; width: 100%; position: relative; display: flex; justify-content: center; align-items: center;">
+              <div style="height: 300px; width: 100%; position: relative;">
                 <canvas id="myChart"></canvas>
+              </div>
+              <div class="chart-legend" id="chartLegend">
+                <!-- Legend items will be dynamically inserted here -->
               </div>
             </div>
           </div>
@@ -466,7 +908,7 @@
                 id="tableSearch" 
                 class="search-input" 
                 placeholder="Search..." 
-              />
+              >
             </div>
           </div>
           <div class="card-body p-0">
@@ -512,449 +954,302 @@
   <!-- Main JavaScript -->
   <script>
     // Configuration
-const COLORS = ['#ff6384', '#36a2eb', '#9966ff', '#ff9f40', '#4bc0c0', '#ffcd56', '#c9cbcf'];
-const CATEGORY_COLUMN = 'CATEGORY'; // Change this to match your category column name
-
-// State variables
-let originalData = [];
-let categoryData = {};
-let chart = null;
-let activeFilter = null;
-let sortConfig = { column: null, direction: 'asc' };
-
-// Main function to initialize the dashboard
-function initDashboard() {
-  loadData();
-  
-  // Set up search functionality
-  document.getElementById('tableSearch').addEventListener('input', function(e) {
-    filterTable(e.target.value);
-  });
-  
-  // Update timestamp
-  updateTimestamp();
-}
-
-// Load data from API
-function loadData() {
-  fetch('/api/data')
-    .then(response => {
-      if (!response.ok) {
-        throw new Error(`API returned ${response.status}: ${response.statusText}`);
-      }
-      return response.json();
-    })
-    .then(data => {
-      processData(data);
-    })
-    .catch(error => {
-      console.error('Error loading data:', error);
-      showError(error.message);
-    });
-}
-
-// Process the data from API
-function processData(sheetData) {
-  try {
-    if (!Array.isArray(sheetData) || sheetData.length === 0) {
-      throw new Error('Invalid data format or empty data');
-    }
+    const COLORS = ['#ff6384', '#36a2eb', '#9966ff', '#ff9f40', '#4bc0c0', '#ffcd56', '#c9cbcf'];
+    const CATEGORY_COLUMN = 'CATEGORY'; // Change this to match your category column name
     
-    const headers = sheetData[0].map(header => String(header).toUpperCase());
-    const rows = sheetData.slice(1);
+    // State variables
+    let originalData = [];
+    let categoryData = {};
+    let chart = null;
     
-    // Transform the data into an array of objects with header keys
-    const processedData = rows.map(row => {
-      const rowData = {};
-      headers.forEach((header, index) => {
-        rowData[header] = row[index];
+    // Main function to initialize the dashboard
+    function initDashboard() {
+      loadData();
+      
+      // Set up search functionality
+      document.getElementById('tableSearch').addEventListener('input', function(e) {
+        filterTable(e.target.value);
       });
-      return rowData;
-    });
-    
-    originalData = processedData;
-    
-    // Render the dashboard components
-    renderSummary(headers, processedData);
-    renderTable(headers, processedData);
-    renderChart(headers, processedData);
-    
-    // Update record count
-    updateRecordCount(processedData.length);
-    
-    // Update timestamp
-    updateTimestamp();
-  } catch (error) {
-    console.error('Error processing data:', error);
-    showError(error.message);
-  }
-}
-
-// Update record count display
-function updateRecordCount(count) {
-  const recordCountElement = document.getElementById('recordCount');
-  if (recordCountElement) {
-    recordCountElement.textContent = `${count} record${count !== 1 ? 's' : ''}`;
-  }
-}
-
-// Update timestamp
-function updateTimestamp() {
-  const timestampElement = document.getElementById('updateTime');
-  if (timestampElement) {
-    const now = new Date();
-    const formattedTime = now.toLocaleString();
-    timestampElement.textContent = formattedTime;
-  }
-}
-
-// Helper function to get availability text based on category
-function getAvailabilityText(category) {
-  if (category === '1') return 'Available';
-  if (category === '2') return 'Not Available';
-  return `Category ${category}`;
-}
-
-// Render summary cards
-function renderSummary(headers, data) {
-  const summarySection = document.getElementById('summarySection');
-  summarySection.innerHTML = '';
-  
-  // Check if we have category data
-  const categoryIndex = headers.indexOf(CATEGORY_COLUMN);
-  
-  if (categoryIndex >= 0) {
-    // Count by category
-    const categories = {};
-    data.forEach(row => {
-      const category = row[CATEGORY_COLUMN];
-      if (category) {
-        categories[category] = (categories[category] || 0) + 1;
-      }
-    });
-    
-    categoryData = categories;
-    
-    // Create summary cards for each category
-    Object.entries(categories).forEach(([category, count], index) => {
-      const percentage = Math.round((count / data.length) * 100);
-      
-      const card = document.createElement('div');
-      card.className = `summary-card bg-category-${parseInt(category)}`;
-      card.setAttribute('data-category', category);
-      card.innerHTML = `
-        <div class="value">${count}</div>
-        <div class="label">${getAvailabilityText(category)}</div>
-        <div class="percentage">${percentage}% of total</div>
-      `;
-      
-      // Add click event for filtering
-      card.addEventListener('click', function() {
-        toggleCategoryFilter(category);
-      });
-      
-      summarySection.appendChild(card);
-    });
-  } else {
-    // If no category column, just show total count
-    const card = document.createElement('div');
-    card.className = 'summary-card';
-    card.innerHTML = `
-      <div class="value">${data.length}</div>
-      <div class="label">Total Records</div>
-    `;
-    
-    summarySection.appendChild(card);
-  }
-}
-
-// Toggle category filter
-function toggleCategoryFilter(category) {
-  const filterHint = document.getElementById('filterHint');
-  
-  if (activeFilter === category) {
-    // Clear filter
-    activeFilter = null;
-    filterTable(document.getElementById('tableSearch').value);
-    
-    // Update UI
-    document.querySelectorAll('.summary-card').forEach(card => {
-      card.style.opacity = '1';
-    });
-    
-    // Show hint briefly
-    filterHint.textContent = 'Filter cleared';
-    filterHint.classList.add('show');
-    setTimeout(() => {
-      filterHint.classList.remove('show');
-    }, 1500);
-  } else {
-    // Set filter
-    activeFilter = category;
-    filterTable(document.getElementById('tableSearch').value);
-    
-    // Update UI
-    document.querySelectorAll('.summary-card').forEach(card => {
-      if (card.getAttribute('data-category') === category) {
-        card.style.opacity = '1';
-      } else {
-        card.style.opacity = '0.5';
-      }
-    });
-    
-    // Show hint briefly
-    filterHint.textContent = `Filtering Category ${category}`;
-    filterHint.classList.add('show');
-    setTimeout(() => {
-      filterHint.classList.remove('show');
-    }, 1500);
-  }
-}
-
-// Render data table
-function renderTable(headers, data) {
-  const table = document.getElementById('dataTable');
-  
-  // Create table header
-  const thead = document.createElement('thead');
-  const headerRow = document.createElement('tr');
-  
-  headers.forEach(header => {
-    const th = document.createElement('th');
-    th.textContent = header;
-    th.className = 'sortable';
-    th.addEventListener('click', () => sortTable(header));
-    
-    // If this column is currently sorted, add the appropriate class
-    if (sortConfig.column === header) {
-      th.classList.add(sortConfig.direction);
     }
     
-    headerRow.appendChild(th);
-  });
-  
-  thead.appendChild(headerRow);
-  
-  // Create table body
-  const tbody = document.createElement('tbody');
-  
-  data.forEach(row => {
-    const tr = document.createElement('tr');
-    
-    headers.forEach(header => {
-      const td = document.createElement('td');
-      const value = row[header];
-      
-      // If this is the category column, show "Available" or "Not Available"
-      if (header === CATEGORY_COLUMN) {
-        const displayText = getAvailabilityText(value);
-        const badgeClass = `badge badge-cat-${parseInt(value)}`;
-        td.innerHTML = `<span class="${badgeClass}">${displayText}</span>`;
-      } else {
-        td.textContent = value || '';
-      }
-      
-      tr.appendChild(td);
-    });
-    
-    tbody.appendChild(tr);
-  });
-  
-  // Replace existing table content
-  table.innerHTML = '';
-  table.appendChild(thead);
-  table.appendChild(tbody);
-  
-  // Update record count
-  updateRecordCount(data.length);
-}
-
-// Sort table by column
-function sortTable(columnName) {
-  if (sortConfig.column === columnName) {
-    // Toggle direction if already sorting by this column
-    sortConfig.direction = sortConfig.direction === 'asc' ? 'desc' : 'asc';
-  } else {
-    // Set new sort column and default to ascending
-    sortConfig.column = columnName;
-    sortConfig.direction = 'asc';
-  }
-  
-  // Sort the data
-  const sortedData = [...originalData].sort((a, b) => {
-    const valueA = a[columnName];
-    const valueB = b[columnName];
-    
-    // Handle numeric sorting
-    if (!isNaN(valueA) && !isNaN(valueB)) {
-      return sortConfig.direction === 'asc' 
-        ? Number(valueA) - Number(valueB)
-        : Number(valueB) - Number(valueA);
-    }
-    
-    // Handle string sorting
-    const stringA = String(valueA || '').toLowerCase();
-    const stringB = String(valueB || '').toLowerCase();
-    
-    if (stringA < stringB) {
-      return sortConfig.direction === 'asc' ? -1 : 1;
-    }
-    if (stringA > stringB) {
-      return sortConfig.direction === 'asc' ? 1 : -1;
-    }
-    return 0;
-  });
-  
-  // Apply any active filters
-  const filteredData = applyFilters(sortedData);
-  
-  // Re-render the table with sorted data
-  renderTable(Object.keys(originalData[0]), filteredData);
-}
-
-// Apply all active filters
-function applyFilters(data) {
-  // Start with all data or provided data
-  let filteredData = data || [...originalData];
-  
-  // Apply category filter if active
-  if (activeFilter !== null) {
-    filteredData = filteredData.filter(row => 
-      row[CATEGORY_COLUMN] && row[CATEGORY_COLUMN].toString() === activeFilter.toString()
-    );
-  }
-  
-  // Apply search filter if any
-  const searchTerm = document.getElementById('tableSearch').value.toLowerCase();
-  if (searchTerm.trim() !== '') {
-    filteredData = filteredData.filter(row => 
-      Object.values(row).some(value => 
-        value && value.toString().toLowerCase().includes(searchTerm)
-      )
-    );
-  }
-  
-  return filteredData;
-}
-
-// Filter table based on search term
-function filterTable(searchTerm) {
-  if (!originalData.length) return;
-  
-  const headers = Object.keys(originalData[0]);
-  
-  // Apply all filters
-  const filteredData = applyFilters();
-  
-  // Re-render the table with filtered data
-  renderTable(headers, filteredData);
-}
-
-// Render chart
-function renderChart(headers, data) {
-  const categoryIndex = headers.indexOf(CATEGORY_COLUMN);
-  
-  if (categoryIndex < 0) {
-    // No category column, can't create meaningful chart
-    document.getElementById('myChart').parentElement.parentElement.innerHTML = 
-      '<div class="p-4 text-center">No category data available for visualization</div>';
-    return;
-  }
-  
-  // Prepare chart data
-  const categories = {};
-  data.forEach(row => {
-    const category = row[CATEGORY_COLUMN];
-    if (category) {
-      categories[category] = (categories[category] || 0) + 1;
-    }
-  });
-  
-  const chartLabels = Object.keys(categories).map(cat => getAvailabilityText(cat));
-  const chartData = Object.values(categories);
-  
-  // Use specific colors for Available (pink) and Not Available (blue)
- let chartColors = [];
-  Object.keys(categories).forEach(cat => {
-    if (cat === '1') chartColors.push('#ff3366'); // Brighter pink for Available
-    else if (cat === '2') chartColors.push('#2196f3'); // Brighter blue for Not Available
-    else chartColors.push(COLORS[(parseInt(cat) - 1) % COLORS.length]);
-  });
-  
-  // Create the chart
-  const ctx = document.getElementById('myChart').getContext('2d');
-  
-  if (chart) {
-    chart.destroy();
-  }
-  
-  chart = new Chart(ctx, {
-    type: 'pie',
-    data: {
-      labels: chartLabels,
-      datasets: [{
-        data: chartData,
-        backgroundColor: chartColors,
-        borderColor: 'white',
-        borderWidth: 2
-      }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: true,
-      layout: {
-        padding: 20
-      },
-      plugins: {
-        legend: {
-          display: true,
-          position: 'bottom',
-          labels: {
-            padding: 20,
-            font: {
-              size: 13
-            }
+    // Load data from API
+    function loadData() {
+      fetch('/api/data')
+        .then(response => {
+          if (!response.ok) {
+            throw new Error(`API returned ${response.status}: ${response.statusText}`);
           }
+          return response.json();
+        })
+        .then(data => {
+          processData(data);
+        })
+        .catch(error => {
+          console.error('Error loading data:', error);
+          showError(error.message);
+        });
+    }
+    
+    // Process the data from API
+    function processData(sheetData) {
+      try {
+        if (!Array.isArray(sheetData) || sheetData.length === 0) {
+          throw new Error('Invalid data format or empty data');
+        }
+        
+        const headers = sheetData[0].map(header => header.toUpperCase());
+        const rows = sheetData.slice(1);
+        
+        // Transform the data into an array of objects with header keys
+        const processedData = rows.map(row => {
+          const rowData = {};
+          headers.forEach((header, index) => {
+            rowData[header] = row[index];
+          });
+          return rowData;
+        });
+        
+        originalData = processedData;
+        
+        // Render the dashboard components
+        renderSummary(headers, processedData);
+        renderTable(headers, processedData);
+        renderChart(headers, processedData);
+      } catch (error) {
+        console.error('Error processing data:', error);
+        showError(error.message);
+      }
+    }
+    
+    // Render summary cards
+    function renderSummary(headers, data) {
+      const summarySection = document.getElementById('summarySection');
+      summarySection.innerHTML = '';
+      
+      // Check if we have category data
+      const categoryIndex = headers.indexOf(CATEGORY_COLUMN);
+      
+      if (categoryIndex >= 0) {
+        // Count by category
+        const categories = {};
+        data.forEach(row => {
+          const category = row[CATEGORY_COLUMN];
+          if (category) {
+            categories[category] = (categories[category] || 0) + 1;
+          }
+        });
+        
+        categoryData = categories;
+        
+        // Create summary cards for each category
+        Object.entries(categories).forEach(([category, count], index) => {
+          const percentage = Math.round((count / data.length) * 100);
+          
+          const card = document.createElement('div');
+          card.className = `summary-card bg-cat-${parseInt(category)}`;
+          card.innerHTML = `
+            <div class="value">${count}</div>
+            <div class="label">Category ${category} (${percentage}%)</div>
+          `;
+          
+          summarySection.appendChild(card);
+        });
+      } else {
+        // If no category column, just show total count
+        const card = document.createElement('div');
+        card.className = 'summary-card';
+        card.innerHTML = `
+          <div class="value">${data.length}</div>
+          <div class="label">Total Records</div>
+        `;
+        
+        summarySection.appendChild(card);
+      }
+    }
+    
+    // Render data table
+    function renderTable(headers, data) {
+      const table = document.getElementById('dataTable');
+      
+      // Create table header
+      const thead = document.createElement('thead');
+      const headerRow = document.createElement('tr');
+      
+      headers.forEach(header => {
+        const th = document.createElement('th');
+        th.textContent = header;
+        headerRow.appendChild(th);
+      });
+      
+      thead.appendChild(headerRow);
+      
+      // Create table body
+      const tbody = document.createElement('tbody');
+      
+      data.forEach(row => {
+        const tr = document.createElement('tr');
+        
+        headers.forEach(header => {
+          const td = document.createElement('td');
+          const value = row[header];
+          
+          // If this is the category column, add special styling
+          if (header === CATEGORY_COLUMN) {
+            td.innerHTML = `<span class="badge badge-cat-${parseInt(value)}">${value}</span>`;
+          } else {
+            td.textContent = value;
+          }
+          
+          tr.appendChild(td);
+        });
+        
+        tbody.appendChild(tr);
+      });
+      
+      // Replace existing table content
+      table.innerHTML = '';
+      table.appendChild(thead);
+      table.appendChild(tbody);
+    }
+    
+    // Render chart
+    function renderChart(headers, data) {
+      const categoryIndex = headers.indexOf(CATEGORY_COLUMN);
+      
+      if (categoryIndex < 0) {
+        // No category column, can't create meaningful chart
+        document.getElementById('myChart').parentElement.parentElement.innerHTML = 
+          '<div class="p-4 text-center">No category data available for visualization</div>';
+        return;
+      }
+      
+      // Prepare chart data
+      const categories = {};
+      data.forEach(row => {
+        const category = row[CATEGORY_COLUMN];
+        if (category) {
+          categories[category] = (categories[category] || 0) + 1;
+        }
+      });
+      
+      const chartLabels = Object.keys(categories).map(cat => `Category ${cat}`);
+      const chartData = Object.values(categories);
+      const chartColors = Object.keys(categories).map((cat, index) => 
+        COLORS[parseInt(cat) - 1] || COLORS[index % COLORS.length]
+      );
+      
+      // Create the chart
+      const ctx = document.getElementById('myChart').getContext('2d');
+      
+      if (chart) {
+        chart.destroy();
+      }
+      
+      chart = new Chart(ctx, {
+        type: 'pie',
+        data: {
+          labels: chartLabels,
+          datasets: [{
+            data: chartData,
+            backgroundColor: chartColors,
+            borderColor: 'white',
+            borderWidth: 2
+          }]
         },
-        tooltip: {
-          callbacks: {
-            label: function(context) {
-              const value = context.raw;
-              const total = context.dataset.data.reduce((a, b) => a + b, 0);
-              const percentage = Math.round((value / total) * 100);
-              return `${value} records (${percentage}%)`;
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          plugins: {
+            legend: {
+              display: false
+            },
+            tooltip: {
+              callbacks: {
+                label: function(context) {
+                  const value = context.raw;
+                  const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                  const percentage = Math.round((value / total) * 100);
+                  return `${value} records (${percentage}%)`;
+                }
+              }
             }
           }
         }
-      }
+      });
+      
+      // Create custom legend
+      renderChartLegend(chartLabels, chartColors);
     }
-  });
-}
-
-// Show error message
-function showError(message) {
-  const containers = [
-    document.getElementById('summarySection'),
-    document.getElementById('myChart').parentElement.parentElement,
-    document.getElementById('dataTable').parentElement
-  ];
-  
-  containers.forEach(container => {
-    container.innerHTML = `
-      <div class="error-container">
-        <h5>Error Loading Data</h5>
-        <p>${message}</p>
-        <button class="btn btn-sm btn-outline-primary mt-2" onclick="initDashboard()">
-          Try Again
-        </button>
-      </div>
-    `;
-  });
-  
-  // Update timestamp to show error time
-  updateTimestamp();
-}
-
-// Initialize the dashboard when the page loads
-document.addEventListener('DOMContentLoaded', initDashboard);
+    
+    // Render custom chart legend
+    function renderChartLegend(labels, colors) {
+      const legendContainer = document.getElementById('chartLegend');
+      legendContainer.innerHTML = '';
+      
+      labels.forEach((label, index) => {
+        const legendItem = document.createElement('div');
+        legendItem.className = 'legend-item';
+        
+        const colorBox = document.createElement('div');
+        colorBox.className = 'legend-color';
+        colorBox.style.backgroundColor = colors[index];
+        
+        const labelText = document.createElement('span');
+        labelText.textContent = label;
+        
+        legendItem.appendChild(colorBox);
+        legendItem.appendChild(labelText);
+        legendContainer.appendChild(legendItem);
+      });
+    }
+    
+    // Filter table based on search term
+    function filterTable(searchTerm) {
+      if (!originalData.length) return;
+      
+      const headers = Object.keys(originalData[0]);
+      
+      if (searchTerm.trim() === '') {
+        // Reset to original data
+        renderTable(headers, originalData);
+        return;
+      }
+      
+      // Filter data
+      const term = searchTerm.toLowerCase();
+      const filteredData = originalData.filter(row => 
+        Object.values(row).some(value => 
+          value && value.toString().toLowerCase().includes(term)
+        )
+      );
+      
+      // Re-render the table with filtered data
+      renderTable(headers, filteredData);
+    }
+    
+    // Show error message
+    function showError(message) {
+      const containers = [
+        document.getElementById('summarySection'),
+        document.getElementById('myChart').parentElement.parentElement,
+        document.getElementById('dataTable').parentElement
+      ];
+      
+      containers.forEach(container => {
+        container.innerHTML = `
+          <div class="error-container">
+            <h5>Error Loading Data</h5>
+            <p>${message}</p>
+            <button class="btn btn-sm btn-outline-primary mt-2" onclick="initDashboard()">
+              Try Again
+            </button>
+          </div>
+        `;
+      });
+    }
+    
+    // Initialize the dashboard when the page loads
+    document.addEventListener('DOMContentLoaded', initDashboard);
   </script>
+</body>
+</html>
