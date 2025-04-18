@@ -1,35 +1,77 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>My Google Sheets App</title>
-  <style>
-    table { border-collapse: collapse; width: 50%; margin: 20px auto; }
-    th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-    th { background-color: #f2f2f2; }
-  </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Colorful Dashboard</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
 </head>
 <body>
-  <h1>Data from Google Sheets</h1>
-  <div id="data"></div>
+  <div class="container">
+    <h1 class="text-center my-4">My Colorful Dashboard</h1>
+    <div class="row">
+      <div class="col-md-6">
+        <canvas id="myChart"></canvas>
+      </div>
+      <div class="col-md-6">
+        <div id="dataTable"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script>
-    fetch('/api/data')
+    // Replace this fetch URL with your actual Google Sheets data endpoint
+    fetch("/api/data") // Adjust this to match your setup
       .then(response => response.json())
-      .then(data => {
-        const dataDiv = document.getElementById('data');
-        let table = '<table><tr>';
-        // Add headers from first row
-        data[0].forEach(header => table += `<th>${header}</th>`);
-        table += '</tr>';
-        // Add data rows
-        for (let i = 1; i < data.length; i++) {
-          table += '<tr>';
-          data[i].forEach(cell => table += `<td>${cell}</td>`);
-          table += '</tr>';
-        }
-        table += '</table>';
-        dataDiv.innerHTML = table;
+      .then(sheetData => {
+        const headers = sheetData[0];  // e.g., ["Category", "Value"]
+        const rows = sheetData.slice(1);  // e.g., [["A", 10], ["B", 20], ...]
+
+        // Process data for pie chart
+        const categories = rows.map(row => row[0]);  // ["A", "B", ...]
+        const values = rows.map(row => row[1]);  // [10, 20, ...]
+
+        // Render pie chart
+        const ctx = document.getElementById('myChart').getContext('2d');
+        new Chart(ctx, {
+          type: 'pie',
+          data: {
+            labels: categories,
+            datasets: [{
+              data: values,
+              backgroundColor: ['#ff6384', '#36a2eb', '#cc65fe', '#ffce56'],
+            }]
+          },
+          options: {
+            responsive: true,
+            plugins: {
+              legend: { position: 'top' },
+            }
+          }
+        });
+
+        // Render table
+        const table = document.createElement('table');
+        table.className = 'table table-striped';
+        const thead = table.createTHead();
+        const headerRow = thead.insertRow();
+        headers.forEach(header => {
+          const th = document.createElement('th');
+          th.textContent = header;
+          headerRow.appendChild(th);
+        });
+        const tbody = table.createTBody();
+        rows.forEach(row => {
+          const tr = tbody.insertRow();
+          row.forEach(cell => {
+            const td = tr.insertCell();
+            td.textContent = cell;
+          });
+        });
+        document.getElementById('dataTable').appendChild(table);
       })
-      .catch(error => console.error('Error fetching data:', error));
+      .catch(error => console.error("Error fetching data:", error));
   </script>
 </body>
 </html>
