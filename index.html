@@ -220,7 +220,9 @@
             Data Distribution
           </div>
           <div class="card-body">
-            <canvas id="myChart" height="250"></canvas>
+            <div style="height: 250px; position: relative;">
+              <canvas id="myChart"></canvas>
+            </div>
             <div class="chart-legend" id="chartLegend">
               <!-- Legend items will be dynamically inserted here -->
             </div>
@@ -440,7 +442,7 @@
       
       if (categoryIndex < 0) {
         // No category column, can't create meaningful chart
-        document.getElementById('myChart').parentElement.innerHTML = 
+        document.getElementById('myChart').parentElement.parentElement.innerHTML = 
           '<div class="p-4 text-center">No category data available for visualization</div>';
         return;
       }
@@ -480,7 +482,7 @@
         },
         options: {
           responsive: true,
-          maintainAspectRatio: false,
+          maintainAspectRatio: true,
           plugins: {
             legend: {
               display: false
@@ -553,7 +555,7 @@
     function showError(message) {
       const containers = [
         document.getElementById('summarySection'),
-        document.getElementById('myChart').parentElement,
+        document.getElementById('myChart').parentElement.parentElement,
         document.getElementById('dataTable').parentElement
       ];
       
