@@ -408,16 +408,19 @@ function sortTable(columnName) {
 }
 
 /**
- * Render chart
+ * Render chart - UPDATED with fixed height
  */
 function renderChart(sheetData) {
   const chartCanvas = document.getElementById('dataChart');
   if (!chartCanvas) return;
   
+  // Get the chart container
+  const chartContainer = chartCanvas.parentElement;
+  
   // Check if we have categories
   if (Object.keys(sheetData.categories).length === 0) {
     // No categories available, show message
-    chartCanvas.parentElement.innerHTML = `
+    chartContainer.innerHTML = `
       <div class="d-flex align-items-center justify-content-center h-100 text-center text-muted">
         <div>
           <i class="fas fa-chart-pie fa-3x mb-3"></i>
@@ -441,7 +444,7 @@ function renderChart(sheetData) {
     dashboardState.chart.destroy();
   }
   
-  // Create new chart
+  // Create new chart with explicit sizing options
   dashboardState.chart = new Chart(chartCanvas, {
     type: 'pie',
     data: {
@@ -455,7 +458,13 @@ function renderChart(sheetData) {
     },
     options: {
       responsive: true,
-      maintainAspectRatio: false,
+      maintainAspectRatio: true,
+      aspectRatio: 1.5, // Fixed aspect ratio
+      layout: {
+        padding: {
+          bottom: 10
+        }
+      },
       plugins: {
         legend: {
           display: false
@@ -474,7 +483,7 @@ function renderChart(sheetData) {
     }
   });
   
-  // Create custom legend
+  // Create custom legend with fixed height
   renderChartLegend(chartLabels, chartColors);
 }
 
