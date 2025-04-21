@@ -535,6 +535,57 @@ body {
   align-items: center;
 }
 
+/* Chart Container Fix */
+.chart-container {
+  position: relative;
+  height: 300px; /* Fixed height */
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden; /* Prevent content from overflowing */
+}
+
+.panel-body {
+  padding: 1.25rem;
+  flex: 1;
+  overflow: hidden; /* Prevent content from overflowing */
+  display: flex;
+  flex-direction: column;
+}
+
+/* Make sure the chart stays contained */
+#dataChart {
+  max-height: 300px;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.chart-legend {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 1rem;
+  padding-bottom: 0.5rem;
+  max-height: 100px;
+  overflow-y: auto; /* Allow scrolling if too many legend items */
+}
+
+/* Make sure the dashboard sections don't cause infinite scroll */
+.dashboard-container {
+  overflow: hidden;
+}
+
+.col-lg-5, .col-lg-7 {
+  max-height: 600px; /* Set a reasonable max height */
+}
+
+.dashboard-panel {
+  max-height: 600px; /* Match the column height */
+  display: flex;
+  flex-direction: column;
+}
+
 .toast-content i {
   margin-right: 10px;
   font-size: 1.2rem;
